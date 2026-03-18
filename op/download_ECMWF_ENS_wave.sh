@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
 
-# bash download_ECMWF_ENS_wave.sh 00 1 /home/ec2-user/SageMaker/work/data/ECMWF/wave/00 2
+# bash download_ECMWF_ENS_wave.sh 00 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF
 
 set -euo pipefail
 
 usage() {
   cat <<-USAGE
-Usage: $0 CYCLE [PAST_DAYS] [TARGET_DIR] [MAX_JOBS]
+Usage: $0 CYCLE [PAST_DAYS] [TARGET_DIR]
   CYCLE       00 or 12 forecast cycle
   PAST_DAYS   days before today to download (default: 1)
   TARGET_DIR  output directory (default: /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF)
-  MAX_JOBS    how many concurrent member downloads (default: 1)
 Example:
-  $0 00 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF 2
+  $0 00 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF
 USAGE
 }
 
@@ -36,13 +35,6 @@ if ! [[ "$pa" =~ ^[0-9]+$ ]]; then
 fi
 
 TARGET_DIR="${3:-/scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF}"
-MAX_JOBS="${4:-1}"
-if ! [[ "$MAX_JOBS" =~ ^[1-9][0-9]*$ ]]; then
-  echo "Error: MAX_JOBS must be a positive integer." >&2
-  usage
-  exit 2
-fi
-
 CYCLE_DIR="$TARGET_DIR"
 
 YEAR=$(date --date="-${pa} day" +%Y)
@@ -150,40 +142,8 @@ PYTHON
   echo "Saved $nc"
 }
 
-run_download_with_retries() {
-  local member="$1"
-  local attempts=0
-  local max_attempts=3
-  while (( attempts < max_attempts )); do
-    ((attempts++))
-    run_download "$member" && return 0
-    echo "Retry $attempts/$max_attempts for member $member"
-    sleep 2
-  done
-  echo "Failed after $max_attempts attempts: member $member" >&2
-  return 1
-}
-
-pids=()
 for member in "${ENSMEM[@]}"; do
-  while (( $(jobs -rp | wc -l) >= MAX_JOBS )); do
-    sleep 0.2
-  done
-
-  run_download_with_retries "$member" &
-  pids+=("$!")
+  run_download "$member"
 done
-
-status=0
-for pid in "${pids[@]}"; do
-  if ! wait "$pid"; then
-    status=1
-  fi
-done
-
-if [[ "$status" -ne 0 ]]; then
-  echo "One or more members failed." >&2
-  exit 1
-fi
 
 echo "ECMWF ENS wave download complete: ${DATE}${CHOUR}."
