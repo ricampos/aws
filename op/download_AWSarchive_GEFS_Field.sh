@@ -1,19 +1,25 @@
 #!/usr/bin/env bash
 
-# Two input arguments:
+# Four input arguments:
 # cycle (00, 06, 12, 18)
 # how many days ago: 0 (same day), 1 (yesterday) etc
+# destination path
+# Max number of jobs
+#
+# ./download_AWSarchive_GEFS_Field.sh 06 1 /home/sagemaker-user/work/data/GEFS 8
+
 
 set -euo pipefail
 
 usage() {
   cat <<-USAGE
-Usage: $0 HCYCLE [PAST_DAYS] [MAX_JOBS]
+Usage: $0 HCYCLE [PAST_DAYS] [TARGET_DIR] [MAX_JOBS]
   HCYCLE      Forecast cycle: 00, 06, 12, or 18
   PAST_DAYS   How many days ago to download (default: 1)
+  TARGET_DIR  Data directory (default: /home/sagemaker-user/work/data/GEFS)
   MAX_JOBS    Max concurrent S3 downloads (default: 8)
 Example:
-  $0 06 1 10
+  $0 06 1 /home/sagemaker-user/work/data/GEFS 8
 USAGE
 }
 
@@ -36,7 +42,8 @@ if ! [[ $pa =~ ^[0-9]+$ ]]; then
   exit 2
 fi
 
-MAX_JOBS=${3:-8}
+TARGET_DIR="${3:-/home/sagemaker-user/work/data/GEFS}"
+MAX_JOBS="${4:-8}"
 if ! [[ $MAX_JOBS =~ ^[1-9][0-9]*$ ]]; then
   echo "Error: MAX_JOBS must be a positive integer." >&2
   usage
@@ -44,7 +51,7 @@ if ! [[ $MAX_JOBS =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 BUCKET="s3://noaa-gefs-pds"
-DIRS="/scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/GEFS"
+DIRS="$TARGET_DIR"
 
 YEAR=$(date --date="-${pa} day" +%Y)
 MONTH=$(date --date="-${pa} day" +%m)
