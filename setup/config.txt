@@ -1,0 +1,12 @@
+ 
+
+conda create --prefix /home/sagemaker-user/conda/wop python=3.12
+# conda activate /home/sagemaker-user/conda/wop
+conda config --append envs_dirs /home/sagemaker-user/conda
+conda init bash
+conda activate wop
+
+conda install -n wop vim
+pip install --prefix /home/sagemaker-user/conda/wop babel
+
+
