@@ -2,6 +2,8 @@
 
 # bash download_ECMWF_ENS_wave.sh 00 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF
 
+source /home/ec2-user/SageMaker/bashrc
+
 set -euo pipefail
 
 usage() {
@@ -71,7 +73,7 @@ dp=2
 FLEADS=( $(seq -f "%g" 0 3 144) $(seq -f "%g" 150 6 360) )
 STEP=$(IFS=/; echo "${FLEADS[*]}")
 
-# ensemble members 00-30 for oper, 01-50 for pert
+# ensemble members
 ENSMEM=( $(seq -f "%02g" 0 1 50) )
 
 WORKDIR="${CYCLE_DIR}/work_${DATE}${CHOUR}"

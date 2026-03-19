@@ -8,6 +8,7 @@
 #
 # ./download_AWSarchive_GEFS_Field.sh 06 1 /home/sagemaker-user/work/data/GEFS 8
 
+source /home/ec2-user/SageMaker/bashrc
 
 set -euo pipefail
 
