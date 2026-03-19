@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
 
-# bash download_ECMWF_ENS_wave.sh 00 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF
+# bash download_ECMWF_ENS_wave.sh 00 1 /home/ec2-user/SageMaker/work/data/ECMWF/wave/00
 
 source /home/ec2-user/SageMaker/bashrc
+pkill -f download_ECMWF_ENS_wave.sh
 
 set -euo pipefail
 
 usage() {
   cat <<-USAGE
-Usage: $0 CYCLE [PAST_DAYS] [TARGET_DIR]
+Usage: $0 CYCLE [PAST_DAYS] [TARGET_DIR] [MAX_JOBS]
   CYCLE       00 or 12 forecast cycle
   PAST_DAYS   days before today to download (default: 1)
   TARGET_DIR  output directory (default: /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF)
+  MAX_JOBS    max parallel ensemble downloads (default: 1)
 Example:
-  $0 00 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF
+  $0 00 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF 4
 USAGE
 }
 
@@ -37,6 +39,13 @@ if ! [[ "$pa" =~ ^[0-9]+$ ]]; then
 fi
 
 TARGET_DIR="${3:-/scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF}"
+MAX_JOBS="${4:-1}"
+if ! [[ "$MAX_JOBS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "Error: MAX_JOBS must be a positive integer." >&2
+  usage
+  exit 2
+fi
+
 CYCLE_DIR="$TARGET_DIR"
 
 YEAR=$(date --date="-${pa} day" +%Y)
@@ -144,8 +153,25 @@ PYTHON
   echo "Saved $nc"
 }
 
+pids=()
 for member in "${ENSMEM[@]}"; do
-  run_download "$member"
+  while (( $(jobs -rp | wc -l) >= MAX_JOBS )); do
+    sleep 0.2
+  done
+  run_download "$member" &
+  pids+=("$!")
 done
+
+status=0
+for pid in "${pids[@]}"; do
+  if ! wait "$pid"; then
+    status=1
+  fi
+done
+
+if [[ "$status" -ne 0 ]]; then
+  echo "One or more ensemble members failed." >&2
+  exit 1
+fi
 
 echo "ECMWF ENS wave download complete: ${DATE}${CHOUR}."
