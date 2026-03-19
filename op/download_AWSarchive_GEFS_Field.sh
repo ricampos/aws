@@ -6,8 +6,11 @@
 # destination path
 # Max number of jobs
 #
-# ./download_AWSarchive_GEFS_Field.sh 06 1 /home/sagemaker-user/work/data/GEFS 8
+# ./download_AWSarchive_GEFS_Field.sh 06 1 /home/ec2-user/SageMaker/work/data/GEFSv12 8
 
+source /home/ec2-user/SageMaker/bashrc
+pkill -f download_AWSarchive_GEFS_Field.sh
+pkill -f download_GEFS_AWS.sh
 
 set -euo pipefail
 

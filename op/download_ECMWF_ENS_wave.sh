@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
-# bash download_ECMWF_ENS_wave.sh 00 1 /home/ec2-user/SageMaker/work/data/ECMWF/wave/00 2
+# bash download_ECMWF_ENS_wave.sh 00 1 /home/ec2-user/SageMaker/work/data/ECMWF/wave/00
+
+source /home/ec2-user/SageMaker/bashrc
+pkill -f download_ECMWF_ENS_wave.sh
 
 set -euo pipefail
 
@@ -10,9 +13,9 @@ Usage: $0 CYCLE [PAST_DAYS] [TARGET_DIR] [MAX_JOBS]
   CYCLE       00 or 12 forecast cycle
   PAST_DAYS   days before today to download (default: 1)
   TARGET_DIR  output directory (default: /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF)
-  MAX_JOBS    how many concurrent member downloads (default: 1)
+  MAX_JOBS    max parallel ensemble downloads (default: 1)
 Example:
-  $0 00 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF 2
+  $0 00 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF 4
 USAGE
 }
 
@@ -79,7 +82,7 @@ dp=2
 FLEADS=( $(seq -f "%g" 0 3 144) $(seq -f "%g" 150 6 360) )
 STEP=$(IFS=/; echo "${FLEADS[*]}")
 
-# ensemble members 00-30 for oper, 01-50 for pert
+# ensemble members
 ENSMEM=( $(seq -f "%02g" 0 1 50) )
 
 WORKDIR="${CYCLE_DIR}/work_${DATE}${CHOUR}"
@@ -150,27 +153,12 @@ PYTHON
   echo "Saved $nc"
 }
 
-run_download_with_retries() {
-  local member="$1"
-  local attempts=0
-  local max_attempts=3
-  while (( attempts < max_attempts )); do
-    ((attempts++))
-    run_download "$member" && return 0
-    echo "Retry $attempts/$max_attempts for member $member"
-    sleep 2
-  done
-  echo "Failed after $max_attempts attempts: member $member" >&2
-  return 1
-}
-
 pids=()
 for member in "${ENSMEM[@]}"; do
   while (( $(jobs -rp | wc -l) >= MAX_JOBS )); do
     sleep 0.2
   done
-
-  run_download_with_retries "$member" &
+  run_download "$member" &
   pids+=("$!")
 done
 
@@ -182,7 +170,7 @@ for pid in "${pids[@]}"; do
 done
 
 if [[ "$status" -ne 0 ]]; then
-  echo "One or more members failed." >&2
+  echo "One or more ensemble members failed." >&2
   exit 1
 fi
 
