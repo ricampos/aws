@@ -1,5 +1,12 @@
 
 https://us-east-1.console.aws.amazon.com/sagemaker/home?region=us-east-1#/notebook-instances
+
+https://us-east-1.console.aws.amazon.com/sagemaker/home?region=us-east-1#/dashboard
+
+
+
+
+
 https://week2prob.notebook.us-east-1.sagemaker.aws/lab
 
 https://us-east-1.console.aws.amazon.com/ec2/home?region=us-east-1#Instances:

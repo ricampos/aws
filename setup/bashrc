@@ -1,3 +1,10 @@
+# .bashrc
+
+# Source global definitions
+if [ -f /etc/bashrc ]; then
+        . /etc/bashrc
+fi
+
 cd ~
 
 # If not running interactively, don't do anything
@@ -5,8 +12,6 @@ case $- in
     *i*) ;;
       *) return;;
 esac
-
-
 
 force_color_prompt=yes
 if [ -n "$force_color_prompt" ]; then
@@ -32,35 +37,41 @@ alias ll='ls -lh --color=auto'
 alias la='ls -lah --color=auto'
 
 
+# Uncomment the following line if you don't like systemctl's auto-paging feature:
+# export SYSTEMD_PAGER=
 
 # >>> conda initialize >>>
 # !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('/opt/conda/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
+__conda_setup="$('/home/ec2-user/anaconda3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
 if [ $? -eq 0 ]; then
     eval "$__conda_setup"
 else
-    if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
-        . "/opt/conda/etc/profile.d/conda.sh"
+    if [ -f "/home/ec2-user/anaconda3/etc/profile.d/conda.sh" ]; then
+        . "/home/ec2-user/anaconda3/etc/profile.d/conda.sh"
     else
-        export PATH="/opt/conda/bin:$PATH"
+        export PATH="/home/ec2-user/anaconda3/bin:$PATH"
     fi
 fi
 unset __conda_setup
 # <<< conda initialize <<<
 
-conda activate wop
-
-export EDITOR=vim
+source /home/ec2-user/SageMaker/python_envs/week2/bin/activate
 
 # cron
-sudo service cron start
-sudo update-rc.d cron enable
+sudo systemctl start crond
+sudo systemctl enable crond
+
+#
+export PATH=/home/ec2-user/SageMaker/conda/tools/bin:$PATH
+
+# User specific aliases and functions
 
 # aliases
 alias c='clear'
 
 bind "set completion-ignore-case on"
 alias py='ipython3 --pylab'
+alias spy="ource /home/ec2-user/SageMaker/python_envs/week2/bin/activate"
 
 # limpa cache, tem que ser sudo
 alias lc='sync && echo 1 > /proc/sys/vm/drop_caches'
@@ -68,18 +79,29 @@ alias lswap='swapoff -a && swapon -a'
 # python anaconda installer
 alias ci='conda install -c conda-forge'
 
+# --- NOAA HPC ---
+# Orion
+alias orion='ssh -X rcamp@orion-login.hpc.msstate.edu'
+# Orion
+alias hercules='ssh -X rcamp@hercules-login.hpc.msstate.edu'
+# Hera (pin+token)
+alias hera='ssh -X Ricardo.Campos@hera-rsa.princeton.rdhpcs.noaa.gov'
+# Niagara (pin+token)
+alias niagara='ssh -X Ricardo.Campos@niagara-rsa.princeton.rdhpcs.noaa.gov'
+# Ursa
+alias ursa='ssh -X Ricardo.Campos@ursa-rsa.princeton.rdhpcs.noaa.gov'
 
-# rebuild crontab in case it closes
-CRON_JOBS="0 11 * * * /home/sagemaker-user/work/data/GEFS/download_GEFS_AWS.sh 00 0 >> /home/sagemaker-user/work/data/GEFS/logs/g
-efs.00.log 2>&1
-00 10 * * * /home/sagemaker-user/work/data/GEFS/download_GEFS_AWS.sh 18 1 >> /home/sagemaker-user/work/data/GEFS/logs/gefs.12.log
- 2>&1
-0 9 * * * /home/sagemaker-user/work/data/GEFS/download_GEFS_AWS.sh 12 1 >> /home/sagemaker-user/work/data/GEFS/logs/gefs.18.log 2
->&1"
+# Initialize
+cd /home/ec2-user/SageMaker
 
-# Only add if not already in crontab
-if ! crontab -l 2>/dev/null | grep -q "download_GEFS_AWS"; then
-    (crontab -l 2>/dev/null; echo "$CRON_JOBS") | crontab -
-    echo "Crontab rebuilt."
+# Rebuild crontab if empty
+if ! crontab -l 2>/dev/null | grep -q "."; then
+    crontab /home/ec2-user/SageMaker/crontab
+    echo "Crontab rebuilt from backup."
 fi
+
+# save crontab
+alias sc='/usr/bin/crontab -l > /home/ec2-user/SageMaker/crontab'
+# save bashrc
+alias sb='cp -f /home/ec2-user/.bashrc /home/ec2-user/SageMaker/bashrc' 
 

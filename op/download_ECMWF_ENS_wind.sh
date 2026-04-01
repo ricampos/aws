@@ -1,17 +1,14 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-# bash download_ECMWF_ENS_wave.sh 00 1 /home/ec2-user/SageMaker/work/data/ECMWF/wave/00
+# bash download_ECMWF_ENS_wind.sh 00 1 /home/ec2-user/SageMaker/work/data/ECMWF/wind/00
 
-set +u
 source /home/ec2-user/SageMaker/bashrc
-set -u
 # pkill -f download_ECMWF_ENS_wave.sh
 
 set -euo pipefail
 
 export PATH=/home/ec2-user/SageMaker/conda/tools/bin:$PATH
 source /home/ec2-user/SageMaker/python_envs/week2/bin/activate
-
 
 usage() {
   cat <<-USAGE
@@ -62,15 +59,14 @@ DATE="${YEAR}$(printf "%02d" "$MONTH")$(printf "%02d" "$DAY")"
 LOG_DIR="${TARGET_DIR}/logs"
 mkdir -p "$TARGET_DIR" "$LOG_DIR"
 
-echo "Start ECMWF ENS wave download: date=$DATE cycle=$HCYCLE dir=$TARGET_DIR"
+echo "Start ECMWF ENS wind download: date=$DATE cycle=$HCYCLE dir=$TARGET_DIR"
 
 CHOUR="$HCYCLE"
 CHOUR=$(printf "%02d" "$CHOUR")
 
-LOG_FILE="${LOG_DIR}/download_ECMWF_ENS_wave_${DATE}${CHOUR}.log"
+LOG_FILE="${LOG_DIR}/download_ECMWF_ENS_wind_${DATE}${CHOUR}.log"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
-# Check required commands
 for cmd in python3 cdo ncks; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "Error: required command '$cmd' not found." >&2
@@ -78,17 +74,14 @@ for cmd in python3 cdo ncks; do
   fi
 done
 
-# Domain/compression settings
-wparam_wave="swh/mwd/pp1d/mwp"
+wparam_wind="10u/10v/msl"
 latmin=-82.
 latmax=89.
 dp=2
 
-# Lead times: 0-144 by 3, then 150-360 by 6
 FLEADS=( $(seq -f "%g" 0 3 144) $(seq -f "%g" 150 6 360) )
 STEP=$(IFS=/; echo "${FLEADS[*]}")
 
-# ensemble members
 ENSMEM=( $(seq -f "%02g" 0 1 50) )
 
 WORKDIR="${CYCLE_DIR}/work_${DATE}${CHOUR}"
@@ -102,17 +95,11 @@ cleanup() {
 trap cleanup EXIT
 
 run_download() {
-
-  set +u
-  source /home/sagemaker-user/.bashrc
-  set -u
-  # export PATH=/home/ec2-user/SageMaker/conda/tools/bin:$PATH
-  # source /home/ec2-user/SageMaker/python_envs/week2/bin/activate
-
   local ensemble="$1"
   local member_num=$((10#$ensemble))
   local etype="pf"
   local number_line=""
+
   if [[ "$member_num" -eq 0 ]]; then
     etype="cf"
     number_line=""
@@ -120,13 +107,13 @@ run_download() {
     number_line="        \"number\": \"${member_num}\","  # 1..50 for pert members
   fi
 
-  local base="ECMWF_ENS_wave_${DATE}${CHOUR}.${ensemble}"
+  local base="ECMWF_ENS_wind_${DATE}${CHOUR}.${ensemble}"
   local grib2="${CYCLE_DIR}/${base}.grib2"
   local nc="${CYCLE_DIR}/${base}.nc"
 
   if [[ -f "$nc" ]]; then
     size=$(stat -c%s "$nc")
-    if (( size >= 210000000 )); then
+    if (( size >= 260000000 )); then
       echo "Skipping existing $nc ($size bytes)"
       return 0
     fi
@@ -141,12 +128,12 @@ client.retrieve({
     "class": "od",
     "date": "${DATE}",
     "time": "${CHOUR}",
-    "stream": "waef",
+    "stream": "enfo",
     "type": "${etype}",
 ${number_line}
     "step": "${STEP}",
     "levtype": "sfc",
-    "param": "${wparam_wave}",
+    "param": "${wparam_wind}",
     "target": "${grib2}"
 })
 PYTHON
@@ -167,34 +154,21 @@ PYTHON
 }
 
 pids=()
-status=0
 for member in "${ENSMEM[@]}"; do
+  while (( $(jobs -rp | wc -l) >= MAX_JOBS )); do
+    sleep 0.2
+  done
   run_download "$member" &
   pids+=("$!")
 
-  # Throttle parallel jobs and reap finished pids eagerly
-  while (( ${#pids[@]} >= MAX_JOBS )); do
-    sleep 0.2
-    kept=()
-    for pid in "${pids[@]}"; do
-      if kill -0 "$pid" 2>/dev/null; then
-        kept+=("$pid")
-      else
-        if ! wait "$pid" 2>/dev/null; then
-          status=1
-        fi
-      fi
-    done
-    # preserve emptiness for strict mode (-u)
-    pids=("${kept[@]}")
-  done
 done
 
-# Wait for remaining jobs
+status=0
 for pid in "${pids[@]}"; do
-  if ! wait "$pid" 2>/dev/null; then
+  if ! wait "$pid"; then
     status=1
   fi
+
 done
 
 if [[ "$status" -ne 0 ]]; then
@@ -202,4 +176,4 @@ if [[ "$status" -ne 0 ]]; then
   exit 1
 fi
 
-echo "ECMWF ENS wave download complete: ${DATE}${CHOUR}."
+echo "ECMWF ENS wind download complete: ${DATE}${CHOUR}."
