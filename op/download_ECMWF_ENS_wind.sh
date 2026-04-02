@@ -1,24 +1,25 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# bash download_ECMWF_ENS_wind.sh 00 1 /home/ec2-user/SageMaker/work/data/ECMWF/wind/00
+# input: cycle hour (00,06,12,18), days before, output path, number of parallel proc
+# bash download_ECMWF_ENS_wave.sh 00 1 /home/sagemaker-user/work/data/ECMWF/wave/00 8
 
-source /home/ec2-user/SageMaker/bashrc
-# pkill -f download_ECMWF_ENS_wave.sh
+set +u
+source /home/sagemaker-user/.bashrc
+# Remove ~/bin from PATH to use system CDO/NCO
+export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v "^$HOME/bin$" | tr '\n' ':' | sed 's/:$//')
+set -u
 
 set -euo pipefail
-
-export PATH=/home/ec2-user/SageMaker/conda/tools/bin:$PATH
-source /home/ec2-user/SageMaker/python_envs/week2/bin/activate
 
 usage() {
   cat <<-USAGE
 Usage: $0 CYCLE [PAST_DAYS] [TARGET_DIR] [MAX_JOBS]
-  CYCLE       00 or 12 forecast cycle
+  CYCLE       00, 06, 12, or 18 forecast cycle
   PAST_DAYS   days before today to download (default: 1)
-  TARGET_DIR  output directory (default: /home/ec2-user/SageMaker/work/data/ECMWF)
-  MAX_JOBS    max parallel ensemble downloads (default: 1)
+  TARGET_DIR  output directory (default: /home/sagemaker-user/work/data/ECMWF)
+  MAX_JOBS    parallel conversion jobs (default: 8)
 Example:
-  $0 00 1 /home/ec2-user/SageMaker/work/data/ECMWF 4
+  $0 00 1 /home/sagemaker-user/work/data/ECMWF
 USAGE
 }
 
@@ -28,100 +29,182 @@ if [[ ${1:-""} == "" || ${1:-"?"} =~ ^(-h|--help)$ ]]; then
 fi
 
 HCYCLE="$1"
-if [[ ! "$HCYCLE" =~ ^(00|12)$ ]]; then
-  echo "Error: cycle must be 00 or 12." >&2
-  usage
+if [[ ! "$HCYCLE" =~ ^(00|06|12|18)$ ]]; then
+  echo "Error: cycle must be 00, 06, 12, or 18." >&2
   exit 2
 fi
 
 pa="${2:-1}"
-if ! [[ "$pa" =~ ^[0-9]+$ ]]; then
-  echo "Error: PAST_DAYS must be a non-negative integer." >&2
-  usage
-  exit 2
-fi
-
-TARGET_DIR="${3:-/home/ec2-user/SageMaker/work/data/ECMWF}"
-MAX_JOBS="${4:-1}"
-if ! [[ "$MAX_JOBS" =~ ^[1-9][0-9]*$ ]]; then
-  echo "Error: MAX_JOBS must be a positive integer." >&2
-  usage
-  exit 2
-fi
-
-CYCLE_DIR="$TARGET_DIR"
+TARGET_DIR="${3:-/home/sagemaker-user/work/data/ECMWF}"
 
 YEAR=$(date --date="-${pa} day" +%Y)
 MONTH=$(date --date="-${pa} day" +%m)
 DAY=$(date --date="-${pa} day" +%d)
-DATE="${YEAR}$(printf "%02d" "$MONTH")$(printf "%02d" "$DAY")"
+DATE="${YEAR}${MONTH}${DAY}"
 
-LOG_DIR="${TARGET_DIR}/logs"
-mkdir -p "$TARGET_DIR" "$LOG_DIR"
+# Create date-cycle subdirectory
+DOWNLOAD_DIR="${TARGET_DIR}/${DATE}${HCYCLE}"
+mkdir -p "$DOWNLOAD_DIR"
 
-echo "Start ECMWF ENS wind download: date=$DATE cycle=$HCYCLE dir=$TARGET_DIR"
+echo "Downloading ECMWF wave ensemble from S3: date=$DATE cycle=${HCYCLE}z"
 
-CHOUR="$HCYCLE"
-CHOUR=$(printf "%02d" "$CHOUR")
+S3_PATH="s3://ecmwf-forecasts/${DATE}/${HCYCLE}z/ifs/0p25/waef/"
 
-LOG_FILE="${LOG_DIR}/download_ECMWF_ENS_wind_${DATE}${CHOUR}.log"
-exec > >(tee -a "$LOG_FILE") 2>&1
+# Download all GRIB2 files (exclude -ep files)
+aws s3 sync "$S3_PATH" "$DOWNLOAD_DIR/" \
+  --region eu-central-1 \
+  --no-sign-request \
+  --exclude "*" \
+  --include "*-ef.grib2"
 
-for cmd in python3 cdo ncks; do
-  if ! command -v "$cmd" >/dev/null 2>&1; then
-    echo "Error: required command '$cmd' not found." >&2
-    exit 3
+echo "Download complete. Files saved to: $DOWNLOAD_DIR"
+num_files=$(ls -1 "$DOWNLOAD_DIR"/*.grib2 2>/dev/null | wc -l)
+echo "$num_files files downloaded"
+
+# Standardize filenames: 20260331000000-6h -> 2026033100-006h
+echo "Standardizing filenames..."
+for f in "$DOWNLOAD_DIR"/*-ef.grib2; do
+  [[ -f "$f" ]] || continue
+  base=$(basename "$f")
+  # Extract: YYYYMMDDHH0000-Xh-waef-ef.grib2 -> YYYYMMDDHH-XXXh-waef-ef.grib2
+  if [[ "$base" =~ ^([0-9]{10})0000-([0-9]+)h-(.*)$ ]]; then
+    new_name="${BASH_REMATCH[1]}-$(printf "%03d" ${BASH_REMATCH[2]})h-${BASH_REMATCH[3]}"
+    [[ "$base" != "$new_name" ]] && mv "$DOWNLOAD_DIR/$base" "$DOWNLOAD_DIR/$new_name"
   fi
 done
 
-wparam_wind="10u/10v/msl"
+# Verify downloads
+echo "Verifying downloads..."
+sleep 2
+
+# Check required commands for conversion
+missing=0
+for cmd in cdo ncks; do
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo "Warning: '$cmd' not found." >&2
+    missing=1
+  fi
+done
+
+if [[ $missing -eq 1 ]]; then
+  echo "Skipping conversion due to missing tools." >&2
+  exit 0
+fi
+
+# Domain/compression settings
 latmin=-82.
 latmax=89.
 dp=2
+MAX_JOBS="${4:-8}"
 
-FLEADS=( $(seq -f "%g" 0 3 144) $(seq -f "%g" 150 6 360) )
-STEP=$(IFS=/; echo "${FLEADS[*]}")
+echo "Starting conversion to NetCDF and compression (parallel jobs: $MAX_JOBS)..."
 
-ENSMEM=( $(seq -f "%02g" 0 1 50) )
-
-WORKDIR="${CYCLE_DIR}/work_${DATE}${CHOUR}"
-mkdir -p "$WORKDIR"
-cd "$WORKDIR"
-
-cleanup() {
-  echo "Cleaning temporary workdir: $WORKDIR"
-  rm -rf "$WORKDIR"
+process_grib() {
+  local grib2="$1"
+  local DOWNLOAD_DIR="$2"
+  local latmin="$3"
+  local latmax="$4"
+  local dp="$5"
+  
+  local base=$(basename "$grib2" .grib2)
+  local nc="${DOWNLOAD_DIR}/${base}.nc"
+  
+  [[ -f "$nc" ]] && return 0
+  
+  if ! cdo -s -f nc4 -selname,swh,mwd,pp1d,mwp -sellonlatbox,-180,180,${latmin},${latmax} "$grib2" "${nc}.tmp" 2>/dev/null; then
+    rm -f "${nc}.tmp"
+    echo "Failed: $(basename $grib2)" >&2
+    return 1
+  fi
+  
+  if ! ncks -4 -L 1 --ppc default=.${dp} "${nc}.tmp" "$nc" 2>/dev/null; then
+    rm -f "${nc}.tmp" "$nc"
+    echo "Failed: $(basename $grib2)" >&2
+    return 1
+  fi
+  
+  rm -f "${nc}.tmp"
+  chmod 660 "$nc"
+  echo "Created $(basename $nc)"
 }
-trap cleanup EXIT
 
-run_download() {
-  local ensemble="$1"
-  local member_num=$((10#$ensemble))
-  local etype="pf"
-  local number_line=""
+export -f process_grib
+export DOWNLOAD_DIR latmin latmax dp
 
-  if [[ "$member_num" -eq 0 ]]; then
-    etype="cf"
+echo "Converting $(find "$DOWNLOAD_DIR" -name "*-ef.grib2" | wc -l) files..."
+find "$DOWNLOAD_DIR" -name "*-ef.grib2" | xargs -P "$MAX_JOBS" -I {} bash -c 'process_grib "$@"' _ {} "$DOWNLOAD_DIR" "$latmin" "
+$latmax" "$dp"
+
+# Summary
+total_grib=$(find "$DOWNLOAD_DIR" -name "*-ef.grib2" | wc -l)
+total_nc=$(find "$DOWNLOAD_DIR" -name "*-ef.nc" | wc -l)
+echo "Conversion complete: $total_nc/$total_grib files converted for ${DATE}${HCYCLE}."
+(/home/sagemaker-user/conda/wop) sagemaker-user@default:~/work/data/ECMWF$ more download_ECMWF_ENS_wind.sh
+#!/usr/bin/env bash
+
+# input: cycle hour (00,06,12,18), days before, output path, number of parallel proc
+# bash download_ECMWF_ENS_wind.sh 00 1 /home/sagemaker-user/work/data/ECMWF/wind/00 8
+
+set +u
+source /home/sagemaker-user/.bashrc
+# Remove ~/bin from PATH to use system CDO/NCO
+export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v "^$HOME/bin$" | tr '\n' ':' | sed 's/:$//')
+set -u
+
+set -euo pipefail
+
+usage() {
+  cat <<-USAGE
+Usage: $0 CYCLE [PAST_DAYS] [TARGET_DIR] [MAX_JOBS]
+  CYCLE       00, 06, 12, or 18 forecast cycle
+  PAST_DAYS   days before today to download (default: 1)
+  TARGET_DIR  output directory (default: /home/sagemaker-user/work/data/ECMWF)
+  MAX_JOBS    parallel conversion jobs (default: 8)
+Example:
+  $0 00 1 /home/sagemaker-user/work/data/ECMWF
+USAGE
+}
+
+if [[ ${1:-""} == "" || ${1:-"?"} =~ ^(-h|--help)$ ]]; then
+  usage
+  exit 0
+fi
+
+HCYCLE="$1"
+if [[ ! "$HCYCLE" =~ ^(00|06|12|18)$ ]]; then
+  echo "Error: cycle must be 00, 06, 12, or 18." >&2
+  exit 2
+fi
+
+pa="${2:-1}"
+TARGET_DIR="${3:-/home/sagemaker-user/work/data/ECMWF}"
+
+YEAR=$(date --date="-${pa} day" +%Y)
+MONTH=$(date --date="-${pa} day" +%m)
+DAY=$(date --date="-${pa} day" +%d)
+DATE="${YEAR}${MONTH}${DAY}"
+
+# Create date-cycle subdirectory
+DOWNLOAD_DIR="${TARGET_DIR}/${DATE}${HCYCLE}"
+mkdir -p "$DOWNLOAD_DIR"
+
+echo "Downloading ECMWF wind ensemble: date=$DATE cycle=${HCYCLE}z"
+
+# Download ensemble forecasts (control + perturbed members)
+for etype in cf pf; do
+  if [[ "$etype" == "cf" ]]; then
     number_line=""
   else
-    number_line="        \"number\": \"${member_num}\","  # 1..50 for pert members
+    number_line='    "number": list(range(1, 51)),'
   fi
-
-  local base="ECMWF_ENS_wind_${DATE}${CHOUR}.${ensemble}"
-  local grib2="${CYCLE_DIR}/${base}.grib2"
-  local nc="${CYCLE_DIR}/${base}.nc"
-
-  if [[ -f "$nc" ]]; then
-    size=$(stat -c%s "$nc")
-    if (( size >= 260000000 )); then
-      echo "Skipping existing $nc ($size bytes)"
-      return 0
-    fi
-    echo "Removing stale small $nc ($size bytes)"
-    rm -f "$nc"
-  fi
-
-  python3 - <<PYTHON
+  
+  for STEP in $(seq 0 6 144); do
+    CHOUR=$(printf "%02d" $HCYCLE)
+    grib2="${DOWNLOAD_DIR}/${DATE}${CHOUR}-$(printf "%03d" $STEP)h-enfo-${etype}.grib2"
+    
+    [[ -f "$grib2" ]] && continue
+    
+    python3 - <<PYTHON
 from ecmwf.opendata import Client
 client = Client()
 client.retrieve({
@@ -131,49 +214,80 @@ client.retrieve({
     "stream": "enfo",
     "type": "${etype}",
 ${number_line}
-    "step": "${STEP}",
+    "step": ${STEP},
     "levtype": "sfc",
-    "param": "${wparam_wind}",
+    "param": ["10u", "10v", "msl"],
     "target": "${grib2}"
 })
 PYTHON
-
-  if [[ ! -f "$grib2" ]]; then
-    echo "Error: download failed for member ${ensemble}" >&2
-    return 1
-  fi
-
-  echo "Converting $grib2 to NetCDF"
-  cdo -f nc4 copy "$grib2" "${CYCLE_DIR}/${base}.saux1.nc"
-  ncks -4 -L 1 -d lat,${latmin},${latmax} "${CYCLE_DIR}/${base}.saux1.nc" "${CYCLE_DIR}/${base}.saux2.nc"
-  ncks --ppc default=.${dp} "${CYCLE_DIR}/${base}.saux2.nc" "$nc"
-
-  rm -f "${CYCLE_DIR}/${base}.saux1.nc" "${CYCLE_DIR}/${base}.saux2.nc" "$grib2"
-  chmod 660 "$nc"
-  echo "Saved $nc"
-}
-
-pids=()
-for member in "${ENSMEM[@]}"; do
-  while (( $(jobs -rp | wc -l) >= MAX_JOBS )); do
-    sleep 0.2
+    
+    echo "Downloaded: $(basename $grib2)"
   done
-  run_download "$member" &
-  pids+=("$!")
-
 done
 
-status=0
-for pid in "${pids[@]}"; do
-  if ! wait "$pid"; then
-    status=1
+echo "Download complete. Files saved to: $DOWNLOAD_DIR"
+num_files=$(ls -1 "$DOWNLOAD_DIR"/*.grib2 2>/dev/null | wc -l)
+echo "$num_files files downloaded"
+
+# Check required commands for conversion
+missing=0
+for cmd in cdo ncks; do
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo "Warning: '$cmd' not found." >&2
+    missing=1
   fi
-
 done
 
-if [[ "$status" -ne 0 ]]; then
-  echo "One or more ensemble members failed." >&2
-  exit 1
+if [[ $missing -eq 1 ]]; then
+  echo "Skipping conversion due to missing tools." >&2
+  exit 0
 fi
 
-echo "ECMWF ENS wind download complete: ${DATE}${CHOUR}."
+# Domain/compression settings
+latmin=-82.
+latmax=89.
+dp=2
+MAX_JOBS="${4:-8}"
+
+echo "Starting conversion to NetCDF and compression (parallel jobs: $MAX_JOBS)..."
+
+process_grib() {
+  local grib2="$1"
+  local DOWNLOAD_DIR="$2"
+  local latmin="$3"
+  local latmax="$4"
+  local dp="$5"
+  
+  local base=$(basename "$grib2" .grib2)
+  local nc="${DOWNLOAD_DIR}/${base}.nc"
+  
+  [[ -f "$nc" ]] && return 0
+  
+  if ! cdo -s -f nc4 -selname,u10,v10,msl -sellonlatbox,-180,180,${latmin},${latmax} "$grib2" "${nc}.tmp" 2>/dev/null; then
+    rm -f "${nc}.tmp"
+    echo "Failed: $(basename $grib2)" >&2
+    return 1
+  fi
+  
+  if ! ncks -4 -L 1 --ppc default=.${dp} "${nc}.tmp" "$nc" 2>/dev/null; then
+    rm -f "${nc}.tmp" "$nc"
+    echo "Failed: $(basename $grib2)" >&2
+    return 1
+  fi
+  
+  rm -f "${nc}.tmp"
+  rm -f "$grib2"
+  chmod 660 "$nc"
+  echo "Created $(basename $nc)"
+}
+
+export -f process_grib
+export DOWNLOAD_DIR latmin latmax dp
+
+echo "Converting $(find "$DOWNLOAD_DIR" -name "*-enfo-*.grib2" | wc -l) files..."
+find "$DOWNLOAD_DIR" -name "*-enfo-*.grib2" | xargs -P "$MAX_JOBS" -I {} bash -c 'process_grib "$@"' _ {} "$DOWNLOAD_DIR" "$latmi
+n" "$latmax" "$dp"
+
+# Summary
+total_nc=$(find "$DOWNLOAD_DIR" -name "*-enfo-*.nc" | wc -l)
+echo "Conversion complete: $total_nc files converted for ${DATE}${HCYCLE}."
