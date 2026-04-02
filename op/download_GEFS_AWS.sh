@@ -6,13 +6,15 @@
 # destination path
 # Max number of jobs
 #
-# ./download_AWSarchive_GEFS_Field.sh 06 1 /home/ec2-user/SageMaker/work/data/GEFSv12 8
+# ./download_GEFS_AWS.sh 06 1 /home/ec2-user/SageMaker/work/data/GEFSv12 8
 
 source /home/ec2-user/SageMaker/bashrc
-pkill -f download_AWSarchive_GEFS_Field.sh
-pkill -f download_GEFS_AWS.sh
+# pkill -f download_GEFS_AWS.sh
 
 set -euo pipefail
+
+export PATH=/home/ec2-user/SageMaker/conda/tools/bin:$PATH
+source /home/ec2-user/SageMaker/python_envs/week2/bin/activate
 
 usage() {
   cat <<-USAGE
