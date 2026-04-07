@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 
 # input: cycle hour (00,06,12,18), days before, output path, number of parallel proc
-# bash download_ECMWF_ENS_wave.sh 00 1 /home/sagemaker-user/work/data/ECMWF/wave/00 8
+# bash download_ECMWF_ENS_wave.sh 00 1 /home/ec2-user/SageMaker/work/data/ECMWF/wave/00 8
 
-set +u
-source /home/sagemaker-user/.bashrc
-# Remove ~/bin from PATH to use system CDO/NCO
-export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v "^$HOME/bin$" | tr '\n' ':' | sed 's/:$//')
-set -u
+# Set PATH and activate environment FIRST, before strict mode
+export PATH=/home/ec2-user/SageMaker/conda/tools/bin:$PATH
+source /home/ec2-user/.bashrc
+. /home/ec2-user/SageMaker/bashrc
 
+#  enable strict mode
 set -euo pipefail
 
 usage() {
@@ -124,6 +124,7 @@ process_grib() {
   fi
   
   rm -f "${nc}.tmp"
+  rm -f "$grib2"
   chmod 660 "$nc"
   echo "Created $(basename $nc)"
 }
@@ -132,8 +133,7 @@ export -f process_grib
 export DOWNLOAD_DIR latmin latmax dp
 
 echo "Converting $(find "$DOWNLOAD_DIR" -name "*-ef.grib2" | wc -l) files..."
-find "$DOWNLOAD_DIR" -name "*-ef.grib2" | xargs -P "$MAX_JOBS" -I {} bash -c 'process_grib "$@"' _ {} "$DOWNLOAD_DIR" "$latmin" "
-$latmax" "$dp"
+find "$DOWNLOAD_DIR" -name "*-ef.grib2" | xargs -P "$MAX_JOBS" -I {} bash -c 'process_grib "$@"' _ {} "$DOWNLOAD_DIR" "$latmin" "$latmax" "$dp"
 
 # Summary
 total_grib=$(find "$DOWNLOAD_DIR" -name "*-ef.grib2" | wc -l)

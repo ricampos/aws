@@ -6,7 +6,7 @@
 # destination path
 # Max number of jobs
 #
-# ./download_GEFS_AWS.sh 06 1 /home/ec2-user/SageMaker/work/data/GEFSv12 8
+# ./download_GEFS_AWS.sh 00 1 /home/ec2-user/SageMaker/work/data/GEFSv12 8
 
 source /home/ec2-user/SageMaker/bashrc
 # pkill -f download_GEFS_AWS.sh
@@ -138,3 +138,4 @@ for dir in "${GEFSMDIR}"/GEFSv12Waves_*; do
 done
 
 echo "Cleanup finished."
+
