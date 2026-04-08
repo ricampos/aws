@@ -140,3 +140,16 @@ total_grib=$(find "$DOWNLOAD_DIR" -name "*-ef.grib2" | wc -l)
 total_nc=$(find "$DOWNLOAD_DIR" -name "*-ef.nc" | wc -l)
 echo "Conversion complete: $total_nc/$total_grib files converted for ${DATE}${HCYCLE}."
 
+# cleanup old directories older than 2 days
+CUTOFF=$(date -d "2 days ago" +%Y%m%d%H)
+for dir in "${TARGET_DIR}"/*; do
+  [[ -d "$dir" ]] || continue
+  basename="$(basename "$dir")"
+  if [[ "$basename" =~ ^[0-9]{10}$ && "$basename" -lt "$CUTOFF" ]]; then
+    echo "Deleting old directory: $dir"
+    rm -rf "$dir"
+  fi
+done
+
+echo "Cleanup finished."
+
