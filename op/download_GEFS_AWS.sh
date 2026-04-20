@@ -62,7 +62,7 @@ YEAR=$(date --date="-${pa} day" +%Y)
 MONTH=$(date --date="-${pa} day" +%m)
 DAY=$(date --date="-${pa} day" +%d)
 WTIME=${YEAR}$(printf "%02d" "${MONTH}")$(printf "%02d" "${DAY}")
-DIRW="${DIRS}/GEFSv12_${HCYCLE}Z_Cycle/GEFSv12Waves_${WTIME}"
+DIRW="${DIRS}/${WTIME}${HCYCLE}"
 mkdir -p "${DIRW}"
 
 # Generate forecast lead and ensemble strings once.
@@ -125,12 +125,11 @@ wait
 echo "Download complete for ${WTIME} ${HCYCLE}Z"
 
 # cleanup old cycles older than 16 days
-GEFSMDIR="${DIRS}/GEFSv12_${HCYCLE}Z_Cycle"
 CUTOFF=$(date -d "16 days ago" +%Y%m%d)
-for dir in "${GEFSMDIR}"/GEFSv12Waves_*; do
+for dir in "${DIRS}"/*; do
   [[ -d "$dir" ]] || continue
   basename="$(basename "$dir")"
-  dirdate="${basename#GEFSv12Waves_}"
+  dirdate="${basename:0:8}"
   if [[ "$dirdate" =~ ^[0-9]{8}$ && "$dirdate" -lt "$CUTOFF" ]]; then
     echo "Deleting old directory: $dir"
     rm -rf "$dir"
