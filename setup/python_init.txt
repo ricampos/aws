@@ -1,0 +1,14 @@
+source /home/ec2-user/SageMaker/bashrc
+# pkill -f download_GEFS_AWS.sh
+
+set -euo pipefail
+
+export PATH=/home/ec2-user/SageMaker/conda/tools/bin:$PATH
+source /home/ec2-user/SageMaker/python_envs/week2/bin/activate
+
+# Sagemaker studio, shell init
+source /home/sagemaker-user/.bashrc
+# Set PATH and activate environment FIRST, before strict mode
+eval "$(conda shell.bash hook)"
+conda activate wop
+
