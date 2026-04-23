@@ -41,8 +41,8 @@ USAGE:
   the probabilities and customize the plots.
 
  Example (from linux terminal command line):
-  python3 probmaps_gefs.py probmaps_gefs_internal.yaml 2023060900 7 14 Hs
-  nohup python3 probmaps_gefs.py probmaps_gefs_internal.yaml 2023060900 7 14 Hs >> nohup_probmaps_gefs.out 2>&1 &
+  python3 probmaps.py probmaps_gefs.yaml 2023060900 7 14 Hs
+  nohup python3 probmaps.py probmaps_gefs.yaml 2023060900 7 14 Hs >> nohup_probmaps_gefs.out 2>&1 &
 
 OUTPUT:
  png format figures (probability maps) saved in the outpath directory informed in
@@ -94,7 +94,7 @@ matplotlib.rc('xtick', labelsize=sl); matplotlib.rc('ytick', labelsize=sl); matp
 # --------------------------------------------------------------------------
 
 # Reading functions
-def read_gefs(auxltime,fvarname,nenm,mpath,fcdate,fchour):
+def read_gefs(auxltime,fvarname,nenm,mpath,fcdate,fcycle):
     '''
     Read GEFS grib2 ensemble forecast files.
     '''
@@ -104,7 +104,7 @@ def read_gefs(auxltime,fvarname,nenm,mpath,fcdate,fchour):
     for t in range(0,auxltime.shape[0]):
         for enm in range(0,nenm):
 
-            fname=mpath+"GEFSv12Waves_"+fcdate+"/gefs.wave."+fcdate+"."+str(int(enm)).zfill(2)+".global.0p25.f"+str(int(auxltime[t])).zfill(3)+".grib2"
+            fname=mpath+fcdate+fcycle+"/gefs.wave."+fcdate+"."+str(int(enm)).zfill(2)+".global.0p25.f"+str(int(auxltime[t])).zfill(3)+".grib2"
 
             if c==0:
                 ds = xr.open_dataset(fname, engine='cfgrib')
@@ -128,75 +128,59 @@ def read_gefs(auxltime,fvarname,nenm,mpath,fcdate,fchour):
 
     return fmod, lat, lon, wtime
 
-def read_mm(auxltime,model,mvar,nenm,mpath,fcdate,fchour):
+def read_ecmwf(auxltime,mvar,nenm,mpath,fcdate,fcycle):
     '''
-    Read ECMWF and EnvCanada netcdf ensemble forecast files. 
-    Downloaded and post-processed by 
-      download_ECMWF_ENS_wave.sh or download_ECMWF_ENS_wind.sh  (ECMWF)
-      download_GEWPS_wave.sh or download_GEPS_wind.sh (EnvCanada)
+    Read ECMWF ensemble forecast files. 
+    Each file contains all ensemble members for a single forecast lead time.
     '''
     import netCDF4 as nc
 
-    # model informed in the .yaml configuration file
-    if model=='ECMWF':
-        mtag='ECMWF_ENS'
-    elif model=='EnvCanada':
-        mtag='GEWPS'
+    # Check if wind components (u,v)
+    is_wind = ' ' in mvar
+    if is_wind:
+        mvar = np.array(mvar.split(' ')).astype('str')
+        ftag = 'enfo'
+    else:
+        ftag = 'waef'
 
-    c=0 # loop through the ensemble members
-    for enm in range(0,nenm):
-        # fname = mpath+fcdate+fchour+"/"+mtag+"_wave_"+fcdate+fchour+"."+str(enm).zfill(2)+".nc"
-        fname = mpath+mtag+"_wave_"+fcdate+fchour+"."+str(enm).zfill(2)+".nc"
+    c=0
+    for t in range(0,auxltime.shape[0]):
+        fname = mpath+fcdate+fcycle+"/"+fcdate+fcycle+"-"+str(int(auxltime[t])).zfill(3)+"h-"+ftag+"-ef.nc"
+        
         try:
             f=nc.Dataset(fname)
-            if mvar in list(f.variables.keys()):
-
-                if c==0:
-                    ftime = np.array(f.variables['time'][:]).astype('int')
-                    indt = np.where(np.isin(ftime, auxltime))[0]
-                    lat = np.sort(np.array(f.variables['lat'][:]))
-                    lon = np.array(f.variables['lon'][:]); lon=lon+180.; half = len(lon) // 2
-                    fmod = np.zeros((len(indt),nenm,len(lat),len(lon)),'f')
-
-                    ds = xr.open_dataset(fname)
-                    wtime = np.atleast_1d(np.array(ds.time.values))[indt]
-                    del ds
-
-                if fvarname.upper() == "WS10" or fvarname.upper() == "WND" or fvarname.upper() == "U10":
-                    # u and v components
-                    if c==0:
-                        mvar=np.array(mvar.split(' ')).astype('str')
-
-                    if model=='ECMWF':
-                        auxu = np.flip(np.array(f.variables[mvar[0]][indt,:,:]), axis=1)
-                        auxv = np.flip(np.array(f.variables[mvar[1]][indt,:,:]), axis=1)
-                    else:
-                        auxu = np.array(f.variables[mvar[0]][indt,:,:])
-                        auxv = np.array(f.variables[mvar[1]][indt,:,:])
-
-                    aux = np.sqrt(auxu**2 + auxv**2); del auxu,auxv
-
+            
+            if c==0:
+                lat = np.sort(np.array(f.variables['lat'][:]))
+                lon = np.array(f.variables['lon'][:]); lon=lon+180.; half = len(lon) // 2
+                fmod = np.zeros((auxltime.shape[0],nenm,len(lat),len(lon)),'f')*np.nan
+                ds = xr.open_dataset(fname)
+                wtime = np.atleast_1d(np.array(ds.time.values))
+                del ds
+            
+            for enm in range(0,nenm):
+                if is_wind:
+                    varu = mvar[0] if enm==0 else f"{mvar[0]}_{enm+1}"
+                    varv = mvar[1] if enm==0 else f"{mvar[1]}_{enm+1}"
+                    auxu = np.array(f.variables[varu][0,:,:])
+                    auxv = np.array(f.variables[varv][0,:,:])
+                    aux = np.sqrt(auxu**2 + auxv**2)
                 else:
-                    if model=='ECMWF':
-                        aux = np.flip(np.array(f.variables[mvar][indt,:,:]), axis=1)
-                    else:
-                        aux = np.array(f.variables[mvar][indt,:,:])
+                    varname = mvar if enm==0 else f"{mvar}_{enm+1}"
+                    aux = np.flip(np.array(f.variables[varname][0,:,:]), axis=0)
+                    aux = np.roll(aux, shift=half, axis=1)
 
-                aux = np.roll(aux, shift=half, axis=2)
                 aux[aux<-100]=np.nan; aux[aux>100]=np.nan
-                fmod[:,enm,:,:] = aux
-                del aux
-
-            else:
-                sys.exit(" Enviromental variable "+mvar+" not found in the file "+fname)
-
-        except:
-            sys.exit(" Could not open and read file "+fname)
-        else:
+                fmod[t,enm,:,:] = aux
+            
+            f.close()
             c=c+1
+            print(repr(t))
+            
+        except Exception as e:
+            sys.exit(f" Could not open and read file {fname}: {e}")
 
     return fmod, lat, lon, wtime
-
 
 def stprob(fmod,nmax,nenm,lat,lon,spws,qlev,spctl):
     '''
@@ -378,7 +362,7 @@ if __name__ == "__main__":
     fconfig=str(sys.argv[1])
     # Forecast Cycle
     fcycle=str(sys.argv[2])
-    fcdate=str(fcycle[0:8]); fchour=str(fcycle[8:10])
+    fcdate=str(fcycle[0:8]); fcycle=str(fcycle[8:10])
     # Forecast Lead Time (Day) and intervall
     ltime1=int(sys.argv[3])
     ltime2=int(sys.argv[4])
@@ -431,7 +415,7 @@ if __name__ == "__main__":
     umf=1. # unit conversion, when necessary
 
     # maximum value allowed (quick quality control), variable name (grib2), and levels for the probability plot
-    if fvarname.upper() == "WS10" or fvarname.upper() == "WND" or fvarname.upper() == "U10":
+    if fvarname.upper() == "WS10" or fvarname.upper() == "WND" or fvarname.upper() == "U10" or fvarname.upper()[0:-3] == "10U" or fvarname.upper()[0:-3] == "10V" :
         qqvmax=wconfig['qqvmax_wnd']
         mvar=wconfig['mvar_wnd']
         qlev=np.array(wconfig['qlev_wnd']).astype('float')
@@ -478,9 +462,9 @@ if __name__ == "__main__":
 
     # READ Ensemble Forecast files. Appending forecast days (time intervall).
     if model=='GEFS':
-        fmod, lat, lon, wtime = read_gefs(auxltime,fvarname,nenm,mpath,fcdate,fchour)
+        fmod, lat, lon, wtime = read_gefs(auxltime,mvar,nenm,mpath,fcdate,fcycle)
     else:
-        fmod, lat, lon, wtime = read_mm(auxltime,model,fvarname,nenm,mpath,fcdate,fchour)
+        fmod, lat, lon, wtime = read_ecmwf(auxltime,mvar,nenm,mpath,fcdate,fcycle)
 
     # Quick simple quality control
     fmod[fmod>=qqvmax]=np.nan; fmod[fmod<0.]=np.nan
