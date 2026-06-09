@@ -61,7 +61,7 @@ DIRS="$TARGET_DIR"
 YEAR=$(date --date="-${pa} day" +%Y)
 MONTH=$(date --date="-${pa} day" +%m)
 DAY=$(date --date="-${pa} day" +%d)
-WTIME=${YEAR}$(printf "%02d" "${MONTH}")$(printf "%02d" "${DAY}")
+WTIME=${YEAR}$(printf "%02d" $((10#${MONTH})))$(printf "%02d" $((10#${DAY})))
 DIRW="${DIRS}/${WTIME}${HCYCLE}"
 mkdir -p "${DIRW}"
 
