@@ -2,16 +2,16 @@
 
 # Source global definitions
 if [ -f /etc/bashrc ]; then
-        . /etc/bashrc
+	. /etc/bashrc
 fi
 
 cd ~
 
 # If not running interactively, don't do anything
-case $- in
-    *i*) ;;
-      *) return;;
-esac
+# case $- in
+#    *i*) ;;
+#      *) return;;
+# esac
 
 force_color_prompt=yes
 if [ -n "$force_color_prompt" ]; then
@@ -40,6 +40,8 @@ alias la='ls -lah --color=auto'
 # Uncomment the following line if you don't like systemctl's auto-paging feature:
 # export SYSTEMD_PAGER=
 
+# User specific aliases and functions
+
 # >>> conda initialize >>>
 # !! Contents within this block are managed by 'conda init' !!
 __conda_setup="$('/home/ec2-user/anaconda3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
@@ -55,21 +57,19 @@ fi
 unset __conda_setup
 # <<< conda initialize <<<
 
-source /home/ec2-user/SageMaker/python_envs/week2/bin/activate
-
 # cron
 sudo systemctl start crond
 sudo systemctl enable crond
 
 #
 export PATH=/home/ec2-user/SageMaker/conda/tools/bin:$PATH
-
-# User specific aliases and functions
+source /home/ec2-user/SageMaker/python_envs/week2/bin/activate
+conda activate /home/ec2-user/SageMaker/python_envs/wop
 
 # aliases
 alias c='clear'
 
-bind "set completion-ignore-case on"
+# bind "set completion-ignore-case on"
 alias py='ipython3 --pylab'
 alias spy="ource /home/ec2-user/SageMaker/python_envs/week2/bin/activate"
 
@@ -104,4 +104,5 @@ fi
 alias sc='/usr/bin/crontab -l > /home/ec2-user/SageMaker/crontab'
 # save bashrc
 alias sb='cp -f /home/ec2-user/.bashrc /home/ec2-user/SageMaker/bashrc' 
+
 
