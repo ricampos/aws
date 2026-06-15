@@ -111,7 +111,7 @@ process_grib() {
   
   [[ -f "$nc" ]] && return 0
   
-  if ! cdo -s -f nc4 -selname,10u,10v,msl -sellonlatbox,-180,180,${latmin},${latmax} "$grib2" "${nc}.tmp" 2>/dev/null; then
+  if ! cdo -s -f nc4 -selname,10u,10v -sellonlatbox,-180,180,${latmin},${latmax} "$grib2" "${nc}.tmp" 2>/dev/null; then
     rm -f "${nc}.tmp"
     echo "Failed: $(basename $grib2)" >&2
     return 1

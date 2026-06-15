@@ -82,7 +82,28 @@ mkdir -p $YEAR$MONTH$DAY/WS10
 mv *Hs* $YEAR$MONTH$DAY/Hs/
 mv *WS10* $YEAR$MONTH$DAY/WS10/
 
+#
+
+# Get the cutoff date in YYYYMMDD format
+CUTOFF=$(date -d "$((pa + 3)) days ago" +%Y%m%d)
+# Loop through directories matching pattern
+for dir in "$GEFSMDIR"/GEFSv12Waves_*; do
+    # Extract the date part from directory name
+    BASENAME=$(basename "$dir")
+    DIR_DATE=${BASENAME#GEFSv12Waves_}
+
+    # Check if it’s a valid 8-digit date
+    if [[ $DIR_DATE =~ ^[0-9]{8}$ ]]; then
+        # If directory date is older than cutoff, delete it
+        if [[ $DIR_DATE -lt $CUTOFF ]]; then
+            echo "Deleting $dir (older than $pa days)"
+            rm -rf "$dir"
+        fi
+    fi
+done
+
 echo "  "
 echo " Done."
 echo "  "
+
 

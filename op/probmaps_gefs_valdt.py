@@ -7,7 +7,6 @@ probmaps_gefs_valdt.py
 VERSION AND LAST UPDATE:
  v1.0  11/12/2025
  v2.0  02/18/2026
- v2.1  06/11/2026
 
 PURPOSE:
  Based on probmaps_gefs.py used operationally, using the archives (adding a reference) for validation.
@@ -41,7 +40,6 @@ DEPENDENCIES:
 AUTHOR and DATE:
  11/12/2025: Ricardo M. Campos, first version.
  02/18/2026: Ricardo M. Campos, improvement in the spatial validation.
- 06/11/2026: Ricardo M. Campos, new run on AWS cloud.
 
 PERSON OF CONTACT:
  Ricardo M Campos: ricardo.campos@noaa.gov

@@ -2,7 +2,7 @@
 
 # Source global definitions
 if [ -f /etc/bashrc ]; then
-	. /etc/bashrc
+        . /etc/bashrc
 fi
 
 cd ~
@@ -104,5 +104,3 @@ fi
 alias sc='/usr/bin/crontab -l > /home/ec2-user/SageMaker/crontab'
 # save bashrc
 alias sb='cp -f /home/ec2-user/.bashrc /home/ec2-user/SageMaker/bashrc' 
-
-

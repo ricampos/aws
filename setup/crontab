@@ -3,9 +3,11 @@
 0 10 * * * bash /home/ec2-user/SageMaker/work/data/GEFSv12/download_GEFS_AWS.sh 12 1 /home/ec2-user/SageMaker/work/data/GEFSv12 8 > /home/ec2-user/SageMaker/work/data/GEFSv12/logs/gefs.12.log 2>&1
 0 11 * * * bash /home/ec2-user/SageMaker/work/data/GEFSv12/download_GEFS_AWS.sh 18 1 /home/ec2-user/SageMaker/work/data/GEFSv12 8 > /home/ec2-user/SageMaker/work/data/GEFSv12/logs/gefs.18.log 2>&1
 # ECMWF
-40 13 * * * bash /home/ec2-user/SageMaker/work/data/ECMWF/download_ECMWF_ENS_wave.sh 00 0 /home/ec2-user/SageMaker/work/data/ECMWF 4 > /home/ec2-user/SageMaker/work/data/ECMWF/logs/ecmwf_wave.00.log 2>&1
-00 14 * * * bash /home/ec2-user/SageMaker/work/data/ECMWF/download_ECMWF_ENS_wind.sh 00 0 /home/ec2-user/SageMaker/work/data/ECMWF 8 > /home/ec2-user/SageMaker/work/data/ECMWF/logs/ecmwf_wind.00.log 2>&1
-20 10 * * * bash /home/ec2-user/SageMaker/work/data/ECMWF/download_ECMWF_ENS_wave.sh 12 1 /home/ec2-user/SageMaker/work/data/ECMWF 4 > /home/ec2-user/SageMaker/work/data/ECMWF/logs/ecmwf_wave.12.log 2>&1
-40 10 * * * bash /home/ec2-user/SageMaker/work/data/ECMWF/download_ECMWF_ENS_wind.sh 12 1 /home/ec2-user/SageMaker/work/data/ECMWF 8 > /home/ec2-user/SageMaker/work/data/ECMWF/logs/ecmwf_wind.12.log 2>&1
-20 12 * * * bash /home/ec2-user/SageMaker/work/data/ECMWF/download_ECMWF_ENS_wave.sh 18 1 /home/ec2-user/SageMaker/work/data/ECMWF 4 > /home/ec2-user/SageMaker/work/data/ECMWF/logs/ecmwf_wave.18.log 2>&1
-40 12 * * * bash /home/ec2-user/SageMaker/work/data/ECMWF/download_ECMWF_ENS_wind.sh 18 1 /home/ec2-user/SageMaker/work/data/ECMWF 8 > /home/ec2-user/SageMaker/work/data/ECMWF/logs/ecmwf_wind.18.log 2>&1
+40 15 * * * bash /home/ec2-user/SageMaker/work/data/ECMWF/download_ECMWF_ENS_wave.sh 00 0 /home/ec2-user/SageMaker/work/data/ECMWF 4 > /home/ec2-user/SageMaker/work/data/ECMWF/logs/ecmwf_wave.00.log 2>&1
+00 16 * * * bash /home/ec2-user/SageMaker/work/data/ECMWF/download_ECMWF_ENS_wind.sh 00 0 /home/ec2-user/SageMaker/work/data/ECMWF 8 > /home/ec2-user/SageMaker/work/data/ECMWF/logs/ecmwf_wind.00.log 2>&1
+00 13 * * * bash /home/ec2-user/SageMaker/work/data/ECMWF/download_ECMWF_ENS_wave.sh 12 1 /home/ec2-user/SageMaker/work/data/ECMWF 4 > /home/ec2-user/SageMaker/work/data/ECMWF/logs/ecmwf_wave.12.log 2>&1
+00 14 * * * bash /home/ec2-user/SageMaker/work/data/ECMWF/download_ECMWF_ENS_wind.sh 12 1 /home/ec2-user/SageMaker/work/data/ECMWF 8 > /home/ec2-user/SageMaker/work/data/ECMWF/logs/ecmwf_wind.12.log 2>&1
+# 20 12 * * * bash /home/ec2-user/SageMaker/work/data/ECMWF/download_ECMWF_ENS_wave.sh 18 1 /home/ec2-user/SageMaker/work/data/ECMWF 4 > /home/ec2-user/SageMaker/work/data/ECMWF/logs/ecmwf_wave.18.log 2>&1
+# 40 12 * * * bash /home/ec2-user/SageMaker/work/data/ECMWF/download_ECMWF_ENS_wind.sh 18 1 /home/ec2-user/SageMaker/work/data/ECMWF 8 > /home/ec2-user/SageMaker/work/data/ECMWF/logs/ecmwf_wind.18.log 2>&1
+# WEEK2 Prob Forecast
+0 13 * * * bash /home/ec2-user/SageMaker/work/week2/sval/probmaps_gefs_valdt.sh /home/ec2-user/SageMaker/work/week2/sval/probmaps_gefs_internal.yaml > /home/ec2-user/SageMaker/work/week2/sval/logs/probmaps_gefs_valdt.log 2>&1
